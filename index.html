@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Распознавание дорожных знаков</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 { text-align: center; color: #333; margin-bottom: 10px; font-size: 2.2em; }
+    .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 1.1em; }
+
+    .upload-area {
+      border: 3px dashed #667eea;
+      border-radius: 15px;
+      padding: 50px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s;
+      background: #f8f9ff;
+      margin-bottom: 30px;
+    }
+    .upload-area:hover { border-color: #764ba2; background: #f0f2ff; }
+    .upload-area.dragover { border-color: #764ba2; background: #e8ebff; transform: scale(1.02); }
+    .upload-area.hidden { display: none; }
+
+    .upload-icon { font-size: 4em; margin-bottom: 15px; }
+    .upload-text { font-size: 1.2em; color: #555; margin-bottom: 10px; }
+    .upload-subtext { color: #999; font-size: 0.9em; }
+
+    #fileInput { display: none; }
+
+    .preview-container { display: none; margin: 10px 0 20px; text-align: center; }
+    .preview-container.active { display: block; }
+
+    #preview {
+      max-width: 420px;
+      max-height: 420px;
+      border-radius: 10px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin: 20px 0 0;
+      flex-wrap: wrap;
+    }
+
+    button {
+      padding: 15px 32px;
+      font-size: 1.05em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-weight: 600;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(102,126,234,0.4); }
+
+    .btn-secondary { background: #e0e0e0; color: #555; }
+    .btn-secondary:hover { background: #d0d0d0; }
+
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .loading { display: none; text-align: center; padding: 20px; }
+    .loading.active { display: block; }
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+
+    .error {
+      display: none;
+      padding: 16px;
+      background: #fee;
+      border: 2px solid #fcc;
+      border-radius: 10px;
+      color: #c33;
+      margin-top: 16px;
+    }
+    .error.active { display: block; }
+
+    .results {
+      display: none;
+      margin-top: 22px;
+      padding: 25px;
+      background: #f8f9ff;
+      border-radius: 15px;
+    }
+    .results.active { display: block; animation: fadeIn 0.5s; }
+    @keyframes fadeIn { from{opacity:0; transform:translateY(20px)} to{opacity:1; transform:translateY(0)} }
+
+    .main-result {
+      text-align: center;
+      padding: 25px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 10px;
+    }
+
+    /* ВАЖНО: тут теперь выводим только НАЗВАНИЕ, без цифр */
+    .result-title { font-size: 2.1em; font-weight: 800; margin-bottom: 10px; }
+
+    .result-confidence { font-size: 1.2em; opacity: 0.9; }
+    .confidence-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 5px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+    .confidence-fill {
+      height: 100%;
+      background: white;
+      border-radius: 5px;
+      transition: width 0.6s ease;
+      width: 0%;
+    }
+
+    @media (max-width: 600px) {
+      .container { padding: 20px; }
+      h1 { font-size: 1.6em; }
+      button { width: 100%; }
+      #preview { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Распознавание дорожных знаков</h1>
+    <p class="subtitle">Загрузите фото дорожного знака для распознавания</p>
+
+    <!-- Блок загрузки: скрываем после выбора фото -->
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📸</div>
+      <div class="upload-text">Нажмите или перетащите изображение</div>
+      <div class="upload-subtext">JPG, PNG, WEBP</div>
+    </div>
+
+    <input type="file" id="fileInput" accept="image/*" />
+
+    <!-- Предпросмотр + кнопки -->
+    <div class="preview-container" id="previewContainer">
+      <img id="preview" alt="Предпросмотр" />
+      <div class="button-group">
+        <button class="btn-primary" id="analyzeBtn">Распознать знак</button>
+        <button class="btn-secondary" id="clearBtn">Загрузить другое фото</button>
+      </div>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <div>Анализируем изображение...</div>
+    </div>
+
+    <div class="error" id="error"></div>
+
+    <!-- Результат: один (без топ-5) -->
+    <div class="results" id="results">
+      <div class="main-result">
+        <div class="result-title" id="resultTitle">—</div>
+        <div class="result-confidence">
+          Уверенность: <span id="resultConfidence">0.0%</span>
+        </div>
+        <div class="confidence-bar">
+          <div class="confidence-fill" id="confidenceFill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = 'http://localhost:5000/predict';
+
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const previewContainer = document.getElementById('previewContainer');
+    const preview = document.getElementById('preview');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const loading = document.getElementById('loading');
+    const error = document.getElementById('error');
+    const results = document.getElementById('results');
+
+    let currentFile = null;
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) handleFile(file);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) handleFile(file);
+    });
+
+    function handleFile(file) {
+      currentFile = file;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        preview.src = e.target.result;
+
+        // Логика интерфейса:
+        // 1) прячем блок загрузки
+        // 2) показываем предпросмотр + кнопки
+        uploadArea.classList.add('hidden');
+        previewContainer.classList.add('active');
+
+        // чистим прошлые статусы
+        results.classList.remove('active');
+        error.classList.remove('active');
+        loading.classList.remove('active');
+
+        // сбрасываем прогресс-бара
+        document.getElementById('confidenceFill').style.width = '0%';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!currentFile) return;
+
+      loading.classList.add('active');
+      results.classList.remove('active');
+      error.classList.remove('active');
+      analyzeBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', currentFile);
+        // Результат один
+        formData.append('top_k', '1');
+
+        const response = await fetch(API_URL, { method: 'POST', body: formData });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const data = await response.json();
+
+        if (!data.success) throw new Error(data.error || 'Ошибка распознавания');
+
+        displayResults(data);
+      } catch (err) {
+        showError('Ошибка: ' + err.message + '. Убедитесь, что API сервер запущен.');
+      } finally {
+        loading.classList.remove('active');
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    function displayResults(data) {
+      const prediction = data.prediction || {};
+
+      // Поддерживаем оба формата:
+      // prediction.name (старый) / prediction.name_ru (новый)
+      const name = prediction.name ?? prediction.name_ru ?? 'Неизвестный знак';
+      const conf = Number(prediction.confidence ?? 0);
+
+      // Показываем ТОЛЬКО название (без цифры класса)
+      document.getElementById('resultTitle').textContent = name;
+
+      document.getElementById('resultConfidence').textContent = (conf * 100).toFixed(1) + '%';
+      document.getElementById('confidenceFill').style.width = (conf * 100) + '%';
+
+      results.classList.add('active');
+    }
+
+    function showError(message) {
+      error.textContent = message;
+      error.classList.add('active');
+    }
+
+    clearBtn.addEventListener('click', () => {
+      currentFile = null;
+      fileInput.value = '';
+
+      // Возвращаем интерфейс в исходное состояние
+      uploadArea.classList.remove('hidden');
+      previewContainer.classList.remove('active');
+      results.classList.remove('active');
+      error.classList.remove('active');
+      loading.classList.remove('active');
+
+      // сброс визуала
+      preview.src = '';
+      document.getElementById('resultTitle').textContent = '—';
+      document.getElementById('resultConfidence').textContent = '0.0%';
+      document.getElementById('confidenceFill').style.width = '0%';
+    });
+  </script>
+</body>
+</html>
