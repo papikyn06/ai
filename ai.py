@@ -166,7 +166,7 @@ def predict_batch(
 
 
 if __name__ == "__main__":
-    test_image = "images/main_road.jpg"
+    test_image = "00364.png"
 
     if not os.path.exists(test_image):
         print(f"Файл '{test_image}' не найден. Укажите корректный путь.")
